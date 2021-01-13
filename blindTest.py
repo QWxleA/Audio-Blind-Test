@@ -2,8 +2,7 @@
 # https://wiki.archlinux.org/index.php/Professional_audio#System_configuration
 # http://patorjk.com/software/taag/#p=display&f=Big&t=1%202%203%204
 #
-# Depends on cpupower, jack, opusenc, ffmpeg, mpv
-# cpupower needs sudo
+# Depends on jack, opusenc, ffmpeg, mpv
 #
 # this script is *nix only (press any key...)
 
@@ -109,8 +108,6 @@ if __name__ == '__main__':
 opusenc and ffmpeg for encoding.
 
 Optionally jackd for real-time audio.
-Optionally cpupower to turn off powersaving (for jack).
-
 This is not a work of art, just dump all your test music in the same folder...
 """)
     parser.add_argument("-c", "--convert", help="Convert song from flac to opus",
