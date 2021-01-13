@@ -68,11 +68,6 @@ def disableJack():
     subprocess.run("killall jackd", shell=True)
     jack_enabled = False
 
-def cpuPower():
-    print("Use cpupower to disable energy-saving")
-    CMD="command -v cpupower >/dev/null  && sudo cpupower frequency-set -g performance"
-    subprocess.run(CMD, shell=True)
-
 def play(order):
     os.system("clear")
     print("\n  > {} -- can *you* hear the difference?\n\n".format(PROGRAM_NAME))
