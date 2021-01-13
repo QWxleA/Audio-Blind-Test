@@ -33,7 +33,7 @@ jack_enabled = False
 CONV = [ "opusenc --bitrate 64.0 '{}' '{}'",
          "opusenc --bitrate 128.0 '{}' '{}'",
          "ffmpeg -i '{}' -b:a 128k '{}'",
-         "ffmpeg -i '{}' -b:a 128k '{}'"
+         "ffmpeg -i '{}' -b:a 196k '{}'"
         ]
 
 def song2opus(song):
@@ -58,17 +58,15 @@ def graphicalJack():
 def enableJack():
     global jack_enabled
     CMD="pasuspender -- /usr/bin/jackd -R -P89 -dalsa -dhw:0 -r{} -p{} -n{} > /dev/null 2>&1 &".format(RATE, PERIOD, NPERIODS)
+    #print(CMD)
     subprocess.run(CMD, shell=True)
-    print("Enable jack")
     jack_enabled = True
-    sleep(1) #jack is a bit slow...
 
 def disableJack():
     global jack_enabled
-    print("Disable jack")
+    #print("Disable jack")
     subprocess.run("killall jackd", shell=True)
     jack_enabled = False
-    sleep(1)
 
 def cpuPower():
     print("Use cpupower to disable energy-saving")
@@ -82,15 +80,14 @@ def play(order):
         if j+1>len(CONV):
             j=j-(len(CONV))
             enableJack()
-        print("Song no: {}".format(i+1))
-        CMD="mpv --really-quiet '{}-{}.opus'".format(os.path.splitext(args.song)[0], j)
+        sleep(1) #jack is a bit slow... but we don't want to give it away...
+        print("Song no: {} (make a note!)".format(i+1))
+        CMD ="mpv -ao {} --really-quiet '{}-{}.opus' 2> /dev/null".format(("jack" if jack_enabled else "pulse"),os.path.splitext(args.song)[0], j)
         #print(CMD)
         subprocess.run(CMD, shell=True)
         if jack_enabled:
             disableJack()
         os.system('read -p "Press <enter> to continue"')
-
-# mpv -ao jack  --start=1:00 --length=60 "$1"
 
 def showlist(order):
     print("\nThose were all the songs.")
@@ -99,19 +96,18 @@ def showlist(order):
         moreJack=""
         if j+1>len(CONV):
             j=j-(len(CONV))
-            moreJack="(played using jack)"
-        print("{}. Song encoded with {} {}".format(i+1, j, moreJack))
+            moreJack="- (played using jack)"
+        LINE="- Song no {} encoded with: {} {}".format(i+1, CONV[j], moreJack)
+        print(LINE.replace("'{}' ","").replace("-i",""))
 
 def run():
     if args.convert:
         song2opus(args.song)
     order=list(range(len(CONV)*(2 if args.jack else 1)))
     random.shuffle(order)
-    pprint(order)
+    #pprint(order)
     play(order)
     showlist(order)
-
-    print("FIX jack=2, only jack")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="""This script uses mpv for playback,
@@ -124,13 +120,16 @@ This is not a work of art, just dump all your test music in the same folder...
 """)
     parser.add_argument("-c", "--convert", help="Convert song from flac to opus",
                         action="store_true")
-    parser.add_argument("-j", "--jack", help="testing using with jack (1) or jack and pulseaudio (2)",
-                        const=0, nargs="?", type=int, choices=[1, 2])
+    parser.add_argument("-j", "--jack", help="listen using with (and without) jack",
+                        action="store_true")
+    # parser.add_argument("-j", "--jack", help="listing using with jack (1) or jack and pulseaudio (2)",
+    #                     const=0, nargs="?", type=int, choices=[1, 2])
+    # #FIXME 1 and 2!!!
     # parser.add_argument("-s", "--start", help="play song from start-time (eg 1:00)",
     #                    action="store_true")
     # parser.add_argument("-l", "--length", help="how long to play from start-time (eg 1:00)",
     #                    action="store_true")
-    parser.add_argument('song', help="Reference song")
+    parser.add_argument('song', help="Reference song (should probably be .flac)")
 
     args = parser.parse_args()
 
