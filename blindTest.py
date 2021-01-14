@@ -2,20 +2,21 @@
 # https://wiki.archlinux.org/index.php/Professional_audio#System_configuration
 # http://patorjk.com/software/taag/#p=display&f=Big&t=1%202%203%204
 #
-# Depends on jack, opusenc, ffmpeg, mpv
+# Depends on jack2, opus-tools, ffmpeg, mpv
 #
 # this script is *nix only (press any key...)
 
 import argparse
 import sys
 import subprocess
-from time import sleep, strftime
-from os import environ
 from os.path import exists, join, split, splitext
-import os
+from os import system
 from pprint import pprint
 import random
-from time import sleep, strftime
+from time import sleep
+
+import shlex # to split CONV
+
 
 #configure jack
 #cat /proc/asound/card0/codec#0 | grep rates | head -n 1
@@ -27,6 +28,7 @@ NPERIODS = 2
 PERIOD   = 256
 
 jack_enabled = False
+jackproc     = False
 
 #This is used 'as is' just the {} are replaced withthe songs
 CONV = [ "opusenc --bitrate 64.0 '{}' '{}'",
@@ -38,9 +40,11 @@ CONV = [ "opusenc --bitrate 64.0 '{}' '{}'",
 def song2opus(song):
     print("Converting: {}".format(song))
     for i,j in enumerate(CONV):
-        out="{}-{}.opus".format(os.path.splitext(song)[0],i)
-        print(j.format(song, out))
-        subprocess.run(j.format(song, out), shell=True)
+        out="{}-{}.opus".format(splitext(song)[0],i)
+        cmd=j.format(song, out)
+        if args.debug:
+            print(cmd)
+        subprocess.run(shlex.split(cmd))
 
 def graphicalJack():
     pass
@@ -55,37 +59,46 @@ def graphicalJack():
     # pasuspender -- qjackctl &
 
 def enableJack():
-    global jack_enabled
-    CMD="pasuspender -- /usr/bin/jackd -R -P89 -dalsa -dhw:0 -r{} -p{} -n{} > /dev/null 2>&1 &".format(RATE, PERIOD, NPERIODS)
-    #print(CMD)
-    subprocess.run(CMD, shell=True)
+    #
+    global jack_enabled, jackproc
+    cmd="pasuspender -- /usr/bin/jackd -R -P89 -dalsa -dhw:0 -r{} -p{} -n{}".format(RATE, PERIOD, NPERIODS)
+    if args.debug:
+        print(cmd)
+    jackproc=subprocess.Popen(shlex.split(cmd), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     jack_enabled = True
 
 def disableJack():
-    global jack_enabled
-    #print("Disable jack")
-    subprocess.run("killall jackd", shell=True)
+    #global jack_enabled, jackproc
+    if args.debug:
+        print("Disable jack")
+    jackproc.terminate()
     jack_enabled = False
 
 def play(order):
-    os.system("clear")
+    if not args.debug:
+        system("clear")
     print("\n  > {} -- can *you* hear the difference?\n\n".format(PROGRAM_NAME))
     for i,j in enumerate(order):
         if j+1>len(CONV):
             j=j-(len(CONV))
-            enableJack()
+            if not jackproc:
+                enableJack()
+        else:
+            if jackproc:
+                disableJack()
         sleep(1) #jack is a bit slow... but we don't want to give it away...
         print("Song no: {} (make a note!)".format(i+1))
-        CMD ="mpv -ao {} --really-quiet '{}-{}.opus' 2> /dev/null".format(("jack" if jack_enabled else "pulse"),os.path.splitext(args.song)[0], j)
-        #print(CMD)
-        subprocess.run(CMD, shell=True)
-        if jack_enabled:
-            disableJack()
-        os.system('read -p "Press <enter> to continue"')
+        cmd = "mpv -ao '{}' --start=1:00 --length=3 '{}-{}.opus'".format(("jack" if jackproc else "pulse"),splitext(args.song)[0], j)
+        if args.debug:
+            print(cmd)
+        subprocess.run(shlex.split(cmd), capture_output=True)
+        system('read -p "Press <enter> to continue"')
 
 def showlist(order):
+    if jackproc:
+        disableJack()
     print("\nThose were all the songs.")
-    os.system('read -p "\nPress <enter> to continue"')
+    system('read -p "\nPress <enter> to continue"')
     for i,j in enumerate(order):
         moreJack=""
         if j+1>len(CONV):
@@ -97,9 +110,12 @@ def showlist(order):
 def run():
     if args.convert:
         song2opus(args.song)
-    order=list(range(len(CONV)*(2 if args.jack else 1)))
+    playlist_start=len(CONV) if args.jack == 2 else 0 #skip non-jack songs if jack=2
+    playlist_length=len(CONV)*(2 if args.jack else 1) #twice as long if jack
+    order=list(range(playlist_start,playlist_length))
     random.shuffle(order)
-    #pprint(order)
+    if args.debug:
+        pprint(order)
     play(order)
     showlist(order)
 
@@ -113,10 +129,9 @@ This is not a work of art, just dump all your test music in the same folder...
     parser.add_argument("-c", "--convert", help="Convert song from flac to opus",
                         action="store_true")
     parser.add_argument("-j", "--jack", help="listen using with (and without) jack",
+                        action="count")
+    parser.add_argument("-d", "--debug", help="enable debugging",
                         action="store_true")
-    # parser.add_argument("-j", "--jack", help="listing using with jack (1) or jack and pulseaudio (2)",
-    #                     const=0, nargs="?", type=int, choices=[1, 2])
-    # #FIXME 1 and 2!!!
     # parser.add_argument("-s", "--start", help="play song from start-time (eg 1:00)",
     #                    action="store_true")
     # parser.add_argument("-l", "--length", help="how long to play from start-time (eg 1:00)",
